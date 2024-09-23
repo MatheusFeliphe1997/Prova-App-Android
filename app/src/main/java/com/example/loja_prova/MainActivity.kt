@@ -69,6 +69,7 @@ fun LayoutMain() {
             val produto = Gson().fromJson(produtoJson, Produto::class.java)
             DetalhesProduto(navController, produto)
         }
+        composable("estatisticas") { Estatisticas(navController) }
     }
 }
 
@@ -81,68 +82,62 @@ fun ListaProdutos(navController: NavController) {
         Spacer(modifier = Modifier.height(15.dp))
 
         LazyColumn {
-            items(Produto.listaProdutos) { produto ->
+            items(Estoque.instance.obterProdutos()) { produto ->
 
                     Text(text = "${produto.nome} (${produto.estoque} unidades)")
                     Spacer(modifier = Modifier.weight(1f))
-                    Button(onClick = {
-                        val produtoJson = Gson().toJson(produto)
-                        navController.navigate("detalhes/$produtoJson")
-                    }) {
-                        Text("Detalhes")
+                Button(onClick = {
+                    val produtoJson = Gson().toJson(produto)
+                    navController.navigate("detalhes/$produtoJson")
+                }) {
+                    Text("Detalhes")
                     }
                 }
-            }
-        }
+
+                item {
+                Button(onClick = { navController.navigate("estatisticas") }) {
+                    Text("Estatísticas")
+                    }
+                     }
+             }
     }
+}
+
 
 
 @Composable
 fun CadastroProduto(navController: NavController) {
-    var nome by remember { mutableStateOf(TextFieldValue("")) }
-    var categoria by remember { mutableStateOf(TextFieldValue("")) }
-    var preco by remember { mutableStateOf(TextFieldValue("")) }
-    var estoque by remember { mutableStateOf(TextFieldValue("")) }
+    // Campos de entrada
+    val nome = remember { mutableStateOf("") }
+    val categoria = remember { mutableStateOf("") }
+    val preco = remember { mutableStateOf("") }
+    val estoque = remember { mutableStateOf("") }
 
     val context = LocalContext.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(15.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(text = "CADASTRO DE PRODUTO", fontSize = 22.sp)
-
-        Spacer(modifier = Modifier.height(15.dp))
-
-        TextField(value = nome, onValueChange = { nome = it }, label = { Text("Nome do Produto") })
-        TextField(value = categoria, onValueChange = { categoria = it }, label = { Text("Categoria") })
-        TextField(
-            value = preco,
-            onValueChange = { preco = it },
-            label = { Text("Preço") },
-            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
-        )
-        TextField(
-            value = estoque,
-            onValueChange = { estoque = it },
-            label = { Text("Quantidade em Estoque") },
-            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
-        )
-
-        Spacer(modifier = Modifier.height(15.dp))
+    Column(modifier = Modifier.padding(16.dp)) {
+        TextField(value = nome.value, onValueChange = { nome.value = it }, label = { Text("Nome") })
+        TextField(value = categoria.value, onValueChange = { categoria.value = it }, label = { Text("Categoria") })
+        TextField(value = preco.value, onValueChange = { preco.value = it }, label = { Text("Preço") })
+        TextField(value = estoque.value, onValueChange = { estoque.value = it }, label = { Text("Estoque") })
 
         Button(onClick = {
-            if (nome.text.isNotEmpty() && categoria.text.isNotEmpty() &&
-                preco.text.isNotEmpty() && estoque.text.isNotEmpty()) {
+            if (nome.value.isNotEmpty() && categoria.value.isNotEmpty() &&
+                preco.value.isNotEmpty() && estoque.value.isNotEmpty()) {
 
                 try {
-                    val precoFloat = preco.text.toFloat()
-                    val estoqueInt = estoque.text.toInt()
+                    val precoFloat = preco.value.toFloat()
+                    val estoqueInt = estoque.value.toInt()
 
-                    Produto.listaProdutos.add(Produto(nome.text, categoria.text, precoFloat, estoqueInt))
-                    navController.navigate("lista")
+                    if (precoFloat <= 0) {
+                        Toast.makeText(context, "Preço não pode ser menor que 0", Toast.LENGTH_SHORT).show()
+                    } else if (estoqueInt < 1) {
+                        Toast.makeText(context, "Quantidade deve ser pelo menos 1", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val produto = Produto(nome.value, categoria.value, precoFloat, estoqueInt)
+                        Estoque.instance.adicionarProduto(produto)
+                        navController.navigate("lista")
+                    }
                 } catch (e: NumberFormatException) {
                     Toast.makeText(context, "Preço e quantidade devem ser numéricos", Toast.LENGTH_SHORT).show()
                 }
@@ -154,6 +149,7 @@ fun CadastroProduto(navController: NavController) {
         }
     }
 }
+
 @Composable
 fun DetalhesProduto(navController: NavController, produto: Produto) {
     Column(modifier = Modifier.fillMaxSize().padding(15.dp), verticalArrangement = Arrangement.Center) {
@@ -165,6 +161,27 @@ fun DetalhesProduto(navController: NavController, produto: Produto) {
         Text(text = "Categoria: ${produto.categoria}")
         Text(text = "Preço: ${produto.preco}")
         Text(text = "Quantidade: ${produto.estoque}")
+
+        Spacer(modifier = Modifier.height(15.dp))
+
+        Button(onClick = { navController.popBackStack() }) {
+            Text("Voltar")
+        }
+    }
+}
+
+@Composable
+fun Estatisticas(navController: NavController) {
+    val valorTotal = Estoque.instance.calcularValorTotalEstoque()
+    val quantidadeTotal = Estoque.instance.obterProdutos().sumOf { it.estoque }
+
+    Column(modifier = Modifier.fillMaxSize().padding(15.dp), verticalArrangement = Arrangement.Center) {
+        Text(text = "ESTATÍSTICAS", fontSize = 22.sp)
+
+        Spacer(modifier = Modifier.height(15.dp))
+
+        Text(text = "Valor Total do Estoque: R$ ${"%.2f".format(valorTotal)}")
+        Text(text = "Quantidade Total de Produtos: $quantidadeTotal")
 
         Spacer(modifier = Modifier.height(15.dp))
 
